@@ -1,6 +1,6 @@
 import { cancel, confirm, isCancel, note, spinner } from '@clack/prompts';
 import fmt from 'femtocolors';
-import open from 'open';
+import open from 'tiny-open';
 import { writeText } from 'tinyclip';
 import { error, info } from './colors.js';
 import { keychain } from './macos-keychain.js';

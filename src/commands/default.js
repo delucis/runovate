@@ -3,7 +3,7 @@ import { cancel, confirm, isCancel, log, note, progress, spinner, text } from '@
 import { sliceAnsi } from 'fast-slice-ansi';
 import fastStringWidth from 'fast-string-width';
 import fmt from 'femtocolors';
-import open from 'open';
+import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
 import { error, info, success, warning } from '../utils/colors.js';
 import { authenticateWithGitHub } from '../utils/github-auth.js';
