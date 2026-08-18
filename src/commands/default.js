@@ -334,9 +334,11 @@ async function loop({ org, githubClient, args, store }) {
 					if (option.group === true) return;
 					option.label = `${option.value.repository.nameWithOwner}#${option.value.number}`;
 				});
-				headerString = success.inverse(
-					` ${prompt.value?.length} PR${prompt.value?.length === 1 ? '' : 's'} selected `,
-				);
+				headerString = prompt.value?.length
+					? success.inverse(
+							` ${prompt.value?.length} PR${prompt.value?.length === 1 ? '' : 's'} selected `,
+						)
+					: '';
 				return;
 			}
 
