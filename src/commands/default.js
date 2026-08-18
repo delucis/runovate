@@ -39,7 +39,7 @@ const labels = {
 		SUCCESS: success('[ ✔ ]') + ' ',
 	},
 	changeDetails: {
-		header: '  ' + fmt.underline('Changes') + '         ',
+		header: ' ' + fmt.underline('Changes') + '',
 	},
 	files: {
 		header: fmt.underline('Files'),
@@ -54,7 +54,7 @@ const widestWidth = (strings) => Math.max(...strings.map((label) => fastStringWi
 const colWidth = {
 	reviewDecision: widestWidth(Object.values(labels.reviewDecision)),
 	checkState: widestWidth(Object.values(labels.checkState)),
-	changeDetails: 18,
+	changeDetails: 8,
 };
 
 /** Formatter for compact representations of quantities, e.g. `2.1M` or `17k`. */
@@ -85,8 +85,8 @@ async function loop({ org, githubClient, args, store }) {
 	 * @param {string | string[] | null} files
 	 */
 	const row = (status, title, checkState, reviewDecision, pr, files) => {
-		const screenWidth = columns - 20;
-		const maxWidth = Math.min(screenWidth, 125);
+		const screenWidth = columns - 17;
+		const maxWidth = Math.min(screenWidth, 110);
 		const selectUIWidth = 20;
 		const paddingWidth = 4;
 		const padding = ' '.repeat(paddingWidth);
@@ -123,20 +123,15 @@ async function loop({ org, githubClient, args, store }) {
 		}
 
 		if (fastStringWidth(line) + paddingWidth + colWidth.changeDetails < maxWidth) {
-			// 100 files +10k-10k
-			//  10 files  +1k-1k
-			//   1 file  +100-100
-			//   2 files   +7-18
-			// -3-|--5--|---8----
+			// +10k-10k
+			//  +1k-1k
+			// +100-100
+			//   +7-18
 			const changeDetails = pr
 				? typeof pr === 'string'
 					? pr
-					: [
-							fmt.gray(shortNum(pr.changedFiles).padStart(3)),
-							fmt.gray(`file${pr.changedFiles === 1 ? ' ' : 's'}`),
-							fmt.green(`+${shortNum(pr.additions)}`.padStart(4)) +
-								fmt.red(`-${shortNum(pr.deletions)}`.padEnd(4)),
-						].join(' ')
+					: fmt.green(`+${shortNum(pr.additions)}`.padStart(4)) +
+						fmt.red(`-${shortNum(pr.deletions)}`.padEnd(4))
 				: '';
 			line += padding + changeDetails.padEnd(colWidth.changeDetails);
 		} else {
@@ -147,8 +142,15 @@ async function loop({ org, githubClient, args, store }) {
 			if (typeof files === 'string') {
 				line += padding + files;
 			} else if (pr && typeof pr !== 'string' && files) {
+				const fileCountString = `(${pr.changedFiles}) `;
 				const fileSeparator = ', ';
-				const availableWidth = screenWidth - fastStringWidth(line) - paddingWidth;
+				const ellipsis = '...';
+				const availableWidth =
+					screenWidth -
+					fastStringWidth(line) -
+					paddingWidth -
+					fileCountString.length -
+					ellipsis.length;
 				const filesToShow = [];
 				let usedWidth = 0;
 				for (const file of files) {
@@ -160,13 +162,14 @@ async function loop({ org, githubClient, args, store }) {
 						break;
 					}
 				}
+				line += padding + fmt.gray(fileCountString);
 				if (filesToShow.length > 0) {
-					line += padding + fmt.gray(filesToShow.join(fileSeparator));
+					line += fmt.gray(filesToShow.join(fileSeparator));
 					if (filesToShow.length < pr.changedFiles) {
-						line += fmt.gray(', ...');
+						line += fmt.gray([fileSeparator, ellipsis].join(' '));
 					}
 				} else {
-					line += padding + fmt.gray('...');
+					line += fmt.gray(ellipsis);
 				}
 			}
 		}
