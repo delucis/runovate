@@ -51,3 +51,29 @@ By default, `runovate` will authenticate with GitHub using an OAuth app run by [
 ```sh
 runovate --client_id abcdefghij0123456789
 ```
+
+### Other commands
+
+#### `help`
+
+Print basic usage instructions to the terminal window.
+
+```sh
+runovate help
+```
+
+#### `logout`
+
+Clears GitHub credentials stored from previous runs of `runovate`.
+
+```sh
+runovate logout
+```
+
+#### `version`
+
+Print the current package version to the terminal.
+
+```sh
+runovate version
+```

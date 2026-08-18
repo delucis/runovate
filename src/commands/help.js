@@ -11,6 +11,7 @@ export default async function help() {
 		`  ${info(`${fmt.bold('runovate')} [options]`)}  Run the interactive CLI`,
 		`  ${info.bold('runovate help')}       Show this help message`,
 		`  ${info.bold('runovate version')}    Show the version of Runovate`,
+		`  ${info.bold('runovate logout')}     Clear stored GitHub credentials`,
 	]);
 	log.message([
 		`Options:`,

@@ -4,6 +4,7 @@ import open from 'open';
 import { writeText } from 'tinyclip';
 import { error, info } from './colors.js';
 import { keychain } from './macos-keychain.js';
+import { KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE } from './constants.js';
 
 /**
  * Authenticate the user with GitHub using the OAuth device flow.
@@ -15,7 +16,7 @@ export async function authenticateWithGitHub({ client_id, include_private }) {
 		const spin = spinner();
 		spin.start('Logging in to GitHub...');
 
-		const refreshToken = await keychain.get('runovate', 'refresh_token');
+		const refreshToken = await keychain.get(KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE);
 		if (refreshToken) {
 			const accessTokenURL = new URL('https://github.com/login/oauth/access_token');
 			accessTokenURL.searchParams.set('client_id', client_id);
@@ -29,7 +30,7 @@ export async function authenticateWithGitHub({ client_id, include_private }) {
 
 			if (access_token) {
 				try {
-					await keychain.set('runovate', 'refresh_token', newRefreshToken);
+					await keychain.set(KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE, newRefreshToken);
 				} catch {}
 
 				spin.clear();
@@ -101,7 +102,7 @@ export async function authenticateWithGitHub({ client_id, include_private }) {
 			authHandle.resolve(access_token);
 			try {
 				if (keychain.isSupported) {
-					await keychain.set('runovate', 'refresh_token', refresh_token);
+					await keychain.set(KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE, refresh_token);
 				}
 			} catch {}
 		} else if (authError && authError !== 'authorization_pending') {

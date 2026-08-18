@@ -20,6 +20,7 @@ export async function run() {
 		case 'default':
 		case 'help':
 		case 'version':
+		case 'logout':
 			return await runCommand(command);
 		default:
 			log.error(error(`Unknown command: ${fmt.bold(command)}`));
