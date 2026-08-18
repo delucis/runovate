@@ -216,6 +216,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.7.0
         version: 1.7.0
+      fast-slice-ansi:
+        specifier: ^0.3.1
+        version: 0.3.1
       fast-string-width:
         specifier: ^3.0.2
         version: 3.0.2
@@ -234,6 +237,9 @@ importers:
         version: 26.2.0
 
 packages:
+
+  '@ansi-tools/parser@1.0.17':
+    resolution: {integrity: sha512-HEzg0njNfHsng0rU8fk6qGNhnzud9LmMAxn3fOP9flWGZlgggZMNb7yVWadyr2X8CKDg8nHo07Pfs+B/t0VQ8w==}
 
   '@bomb.sh/args@0.3.1':
     resolution: {integrity: sha512-CwxKrfgcorUPP6KfYD59aRdBYWBTsfsxT+GmoLVnKo5Tmyoqbpo0UNcjngRMyU+6tiPbd18RuIYxhgAn44wU/Q==}
@@ -264,6 +270,9 @@ packages:
   define-lazy-prop@3.0.0:
     resolution: {integrity: sha512-N+MeXYoqr3pOgn8xfyRPREN7gHakLYjhsHhWGT3fWAiL4IkAt0iDw14QiiEm2bE30c5XX5q0FtAA3CK5f9/BUg==}
     engines: {node: '>=12'}
+
+  fast-slice-ansi@0.3.1:
+    resolution: {integrity: sha512-uSK2j6DdtGu4wCoi0HCLR4WGUXabe5Zb46gKXr6p/aFNJUjzdxfpkriLePIZSgiPrAPSVTbAbNpmv2X8tH/xdQ==}
 
   fast-string-truncated-width@3.0.3:
     resolution: {integrity: sha512-0jjjIEL6+0jag3l2XWWizO64/aZVtpiGE3t0Zgqxv0DPuxiMjvB3M24fCyhZUO4KomJQPj3LTSUnDP3GpdwC0g==}
@@ -328,6 +337,8 @@ packages:
 
 snapshots:
 
+  '@ansi-tools/parser@1.0.17': {}
+
   '@bomb.sh/args@0.3.1': {}
 
   '@clack/core@1.4.3':
@@ -358,6 +369,10 @@ snapshots:
       default-browser-id: 5.0.1
 
   define-lazy-prop@3.0.0: {}
+
+  fast-slice-ansi@0.3.1:
+    dependencies:
+      '@ansi-tools/parser': 1.0.17
 
   fast-string-truncated-width@3.0.3: {}
 

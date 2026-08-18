@@ -1,5 +1,6 @@
 import { getColumns } from '@clack/core';
 import { cancel, confirm, isCancel, log, note, progress, spinner, text } from '@clack/prompts';
+import { sliceAnsi } from 'fast-slice-ansi';
 import fastStringWidth from 'fast-string-width';
 import fmt from 'femtocolors';
 import open from 'open';
@@ -100,11 +101,11 @@ async function loop({ org, githubClient, args, store }) {
 			colWidth.changeDetails;
 		const minTitleWidth = 36;
 		const titleWidth = Math.max(availableTitleWidth, minTitleWidth);
-		if (title.length > titleWidth) {
-			title = title.slice(0, titleWidth - 1).trim() + '…';
+		if (fastStringWidth(title) > titleWidth) {
+			title = sliceAnsi(title, 0, titleWidth - 1).trim() + '…';
 		}
-		if (title.length < titleWidth) {
-			title = title.padEnd(titleWidth);
+		if (fastStringWidth(title) < titleWidth) {
+			title = title + ' '.repeat(titleWidth - fastStringWidth(title));
 		}
 
 		let line = statusIndicator + ' ' + title;
@@ -192,10 +193,15 @@ async function loop({ org, githubClient, args, store }) {
 		return [
 			fmt.inverse(` Found ${PRs.length} Renovate PR${PRs.length === 1 ? '' : 's'} `) +
 				fmt.dim(` Use shortcuts to select, approve, and merge`),
-			'    ' +
+			'╲' +
+				fmt.gray('╲' + fmt.dim('╲ ')) +
 				row(
 					'',
-					`└─ ${selectedCount} selected ─┘`,
+					(selectedCount ? success : fmt.dim)(
+						`${String(selectedCount).padStart(Math.floor(Math.log(PRs.length) / Math.LN10) + 1)} selected   `,
+					) +
+						fmt.gray(fmt.dim('╱') + '╱') +
+						`╱`,
 					labels.checkState.header,
 					labels.reviewDecision.header,
 					labels.changeDetails.header,
