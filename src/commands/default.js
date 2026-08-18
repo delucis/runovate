@@ -308,6 +308,14 @@ async function loop({ org, githubClient, args, store }) {
 				handle() {},
 			},
 			{
+				label: 'r',
+				hint: 'refresh',
+				handle({ key, prompt }) {
+					if (key !== 'r') return;
+					prompt.state = 'submit';
+				},
+			},
+			{
 				label: 'q',
 				hint: 'quit',
 				handle({ key }) {
