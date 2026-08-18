@@ -1,0 +1,13 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"verbatimModuleSyntax": true,
+		"types": ["node"],
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	},
+	"include": ["./src/**/*"]
+}
