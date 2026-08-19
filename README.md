@@ -1,11 +1,13 @@
-# runovate
+<h1 align="center">runovate</h1>
 
-CLI for managing Renovate update PRs on GitHub
+<p align="center">CLI for managing Renovate update PRs on GitHub</p>
+
+<p align="center"><img width="878" height="486" src="./.github/screenshot.webp"></p>
+
+## Usage
 
 > [!IMPORTANT]
 > This CLI can merge PRs on your behalf. Make sure you trust it if you’re using it. It will do its best to be clear and prompt for confirmation before executing actions, but the software is provided "as is" without warranty of any kind.
-
-## Usage
 
 To get started run `runovate` in your Terminal:
 
