@@ -1,8 +1,5 @@
 // @ts-check
 
-import { log } from '@clack/prompts';
-import fmt from 'femtocolors';
-import { error } from './utils/colors.js';
 import { runCommand } from './utils/run-command.js';
 
 export async function run() {
@@ -16,14 +13,5 @@ export async function run() {
 		command = 'default';
 	}
 
-	switch (command) {
-		case 'default':
-		case 'help':
-		case 'version':
-		case 'logout':
-			return await runCommand(command);
-		default:
-			log.error(error(`Unknown command: ${fmt.bold(command)}`));
-			process.exit(1);
-	}
+	return await runCommand(command);
 }
