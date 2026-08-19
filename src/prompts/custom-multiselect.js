@@ -16,7 +16,7 @@ import fmt from 'femtocolors';
 const MULTISELECT_INSTRUCTIONS = [
 	['↑/↓', 'to navigate'],
 	['space', 'select current'],
-	// ['enter', 'confirm'],
+	['enter', 'confirm'],
 ];
 
 /**

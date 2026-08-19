@@ -1,15 +1,21 @@
-import { getColumns } from '@clack/core';
 import { cancel, confirm, isCancel, log, note, progress, text } from '@clack/prompts';
 import fmt from 'femtocolors';
 import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
+import { disableVimKeys, enableVimKeys } from '../utils/clack.js';
 import { info, success } from '../utils/colors.js';
 import { printHeader } from '../utils/header.js';
 import { strictParse } from '../utils/strict-parse.js';
 import { authenticateWithGitHub } from './default/github-auth.js';
 import { GitHubClient } from './default/github-client.js';
 import { approvePR, getPRs, mergePR, reviewDecision } from './default/github.js';
-import { header, optionRow, row } from './default/ui.js';
+import {
+	defaultInstructions,
+	filterModeInstructions,
+	header,
+	optionRow,
+	row,
+} from './default/ui.js';
 
 /** Parse CLI options for this command. */
 function getArgs() {
@@ -39,20 +45,29 @@ async function loop({ org, githubClient, args, store }) {
 	// filter these out based on our tracking during a session.
 	PRs = PRs.filter((pr) => !store.mergedPRs.has(pr.id));
 
-	let columns = getColumns(process.stdout);
+	/** @type {'DEFAULT' | 'FILTER'} */
+	let mode = 'DEFAULT';
+	let filterString = '';
 
-	let headerString = header(0, PRs.length);
+	let headerString = header(0, PRs.length, mode, filterString);
+	let instructions = defaultInstructions;
+
+	/** @type {Array<import('@clack/prompts').Option<import('./default/github.js').PR> & { group: string | boolean }>} */
+	let fullOptions;
 
 	const selection = await customMultiselect({
-		// Using a getter to let us modify the header on rerenders.
+		// Using a getter to let us modify values on rerender.
 		get message() {
 			return headerString;
+		},
+		get instructions() {
+			return instructions;
 		},
 
 		options: PRs.reduce((acc, pr) => {
 			const repo = fmt.bold(pr.repository.name);
 			acc[repo] ??= [];
-			acc[repo].push({ value: pr, label: optionRow(pr) });
+			acc[repo].push({ value: pr, label: optionRow(pr, filterString) });
 			return acc;
 		}, /** @type {import('@clack/prompts').GroupMultiSelectOptions<typeof PRs[number]>['options']} */ ({})),
 
@@ -63,6 +78,7 @@ async function loop({ org, githubClient, args, store }) {
 				label: 'a',
 				hint: 'select approved',
 				handle({ key, prompt }) {
+					if (mode !== 'DEFAULT') return;
 					if (key !== 'a') return;
 					prompt.value = prompt.options
 						.filter(
@@ -85,20 +101,22 @@ async function loop({ org, githubClient, args, store }) {
 				label: 'x',
 				hint: 'clear selection',
 				handle({ key, prompt }) {
-					if (key !== 'x') return;
-					prompt.value = [];
+					if ((mode === 'DEFAULT' && key === 'x') || key === 'X') {
+						prompt.value = [];
+					}
 				},
 			},
 			{
 				label: 'o',
 				hint: 'open current',
 				handle({ key, prompt }) {
-					if (key !== 'o') return;
-					const currentOption = prompt.options[prompt.cursor];
-					if (currentOption && currentOption.group !== true) {
-						open(currentOption.value.permalink);
-						currentOption.value.isReadByViewer = true;
-						currentOption.label = optionRow(currentOption.value);
+					if ((mode === 'DEFAULT' && key === 'o') || key === 'O') {
+						const currentOption = prompt.options[prompt.cursor];
+						if (currentOption && currentOption.group !== true) {
+							open(currentOption.value.permalink);
+							currentOption.value.isReadByViewer = true;
+							currentOption.label = optionRow(currentOption.value, filterString);
+						}
 					}
 				},
 			},
@@ -120,62 +138,97 @@ async function loop({ org, githubClient, args, store }) {
 						try {
 							await approvePR(currentOption.value.id, githubClient);
 							currentOption.value.reviewDecision = 'APPROVED';
-							currentOption.label = optionRow(currentOption.value);
+							currentOption.label = optionRow(currentOption.value, filterString);
 							rerender();
 						} catch (error) {
-							currentOption.label = optionRow(currentOption.value);
+							currentOption.label = optionRow(currentOption.value, filterString);
 							rerender();
 						}
 					}
 				},
 			},
 			{
-				label: 'enter',
-				hint: 'merge selected',
-				handle() {},
-			},
-			{
 				label: 'r',
 				hint: 'refresh',
 				handle({ key, prompt }) {
+					if (mode !== 'DEFAULT') return;
 					if (key !== 'r') return;
 					prompt.state = 'submit';
 				},
 			},
 			{
-				label: 'q',
-				hint: 'quit',
-				handle({ key }) {
-					if (key !== 'q') return;
-					process.exit(0);
+				label: '^f',
+				hint: 'toggle filter',
+				handle({ key, info, prompt }) {
+					if (!key) return;
+					if (key === '\x06' || (info.name === 'f' && info.ctrl)) {
+						// On ^f toggle between filter and default mode.
+						if (mode === 'DEFAULT') {
+							mode = 'FILTER';
+							fullOptions = prompt.options;
+							instructions = filterModeInstructions;
+							disableVimKeys();
+						} else {
+							mode = 'DEFAULT';
+							prompt.options = fullOptions;
+							instructions = defaultInstructions;
+							enableVimKeys();
+						}
+						filterString = '';
+						return;
+					}
+					if (mode === 'DEFAULT') {
+						return;
+					}
+					// Handle user input, supports backspace, alphanumeric characters, spaces, slashes, parentheses, colons, at signs, and hyphens.
+					if (key === '\x7f' || info.name === 'backspace') {
+						filterString = filterString.slice(0, -1);
+					} else if (/^[a-z0-9\/\s():@^-]$/.test(key)) {
+						filterString += key;
+					}
+					// Update options to only display PRs matching the current search string.
+					const filter = filterString.toLowerCase();
+					prompt.options = fullOptions.filter((option, _idx, options) => {
+						if (option.group === true) {
+							return options.some(
+								(childOption) =>
+									childOption.group === option.label &&
+									childOption.value.title.toLowerCase().includes(filter),
+							);
+						}
+						const matches = option.value.title.toLowerCase().includes(filter);
+						if (matches) {
+							option.label = optionRow(option.value, filterString);
+						}
+						return matches;
+					});
+					prompt.value = prompt.value?.filter((pr) => pr.title.toLowerCase().includes(filter));
 				},
 			},
 		],
 
 		beforeRender({ prompt }) {
-			headerString = header(prompt.value?.length || 0, PRs.length);
-
-			if (prompt.state === 'submit') {
-				// Update labels and header on submit so the final output is compact and easier to read.
-				prompt.options.forEach((option) => {
-					if (option.group === true) return;
-					option.label = `${option.value.repository.nameWithOwner}#${option.value.number}`;
-				});
-				headerString = prompt.value?.length
-					? success.inverse(
-							` ${prompt.value?.length} PR${prompt.value?.length === 1 ? '' : 's'} selected `,
-						)
-					: '';
-				return;
+			switch (prompt.state) {
+				case 'submit': {
+					// Update labels and header on submit so the final output is compact and easier to read.
+					prompt.options.forEach((option) => {
+						if (option.group === true) return;
+						option.label = `${option.value.repository.nameWithOwner}#${option.value.number}`;
+					});
+					headerString = prompt.value?.length
+						? success.inverse(
+								` ${prompt.value?.length} PR${prompt.value?.length === 1 ? '' : 's'} selected `,
+							)
+						: '';
+					return;
+				}
 			}
 
-			const newColumns = getColumns(process.stdout);
-			if (newColumns === columns) return;
-			columns = newColumns;
-			headerString = header(prompt.value?.length || 0, PRs.length);
+			// Rerender header and options.
+			headerString = header(prompt.value?.length || 0, PRs.length, mode, filterString);
 			prompt.options.forEach((option) => {
 				if (option.group === true) return;
-				option.label = optionRow(option.value);
+				option.label = optionRow(option.value, filterString);
 			});
 		},
 	});

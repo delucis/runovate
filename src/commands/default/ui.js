@@ -170,11 +170,19 @@ export function row(status, title, checkState, reviewDecision, changes, files) {
 /**
  * Format a single row of the PR selection list from a PR object.
  * @param {import('./github').PR} pr A PR object from the GitHub API.
+ * @param {string} filter The current filter string, if any.
  */
-export const optionRow = (pr) => {
+export const optionRow = (pr, filter) => {
+	const title = filter
+		? pr.title.replace(
+				new RegExp(`(${filter.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i'),
+				fmt.magenta.bold.underline('$1'),
+			)
+		: pr.title;
+
 	return row(
 		pr.mergeable === 'CONFLICTING' ? error.bold('‼︎') : pr.isReadByViewer ? ' ' : fmt.blue('●'),
-		pr.title,
+		title,
 		labels.checkState[pr.statusCheckRollup.state],
 		labels.reviewDecision[reviewDecision(pr)],
 		pr,
@@ -192,12 +200,20 @@ export const optionRow = (pr) => {
  *
  * @param {number} selectedCount The number of PRs currently selected.
  * @param {number} totalPRs The total number of PRs available for selection.
+ * @param {'DEFAULT' | 'FILTER'} mode The current mode of the UI.
+ * @param {string} filterString The current filter string, if any.
+ * @returns {string} The formatted header string.
  */
-export const header = (selectedCount, totalPRs) => {
+export const header = (selectedCount, totalPRs, mode, filterString) => {
 	return [
 		// Top row
-		fmt.inverse(` Found ${totalPRs} Renovate PR${totalPRs === 1 ? '' : 's'} `) +
-			fmt.dim(` Use shortcuts to select, approve, and merge`),
+		[
+			fmt.inverse(` Found ${totalPRs} Renovate PR${totalPRs === 1 ? ' ' : 's'} `),
+			mode === 'FILTER'
+				? fmt.magenta.inverse(' Filter: ') +
+					fmt.magenta.underline.bold(' ' + (filterString + '█').padEnd(18) + '  ▕')
+				: fmt.dim(`Use shortcuts to select, approve, and merge`),
+		].join(' '),
 		// Second row
 		// Selection indicator
 		'╲▁' +
@@ -217,3 +233,29 @@ export const header = (selectedCount, totalPRs) => {
 			),
 	].join(`\n${fmt.cyan(S_BAR)}  `); // Joined using the vertical bar Clack uses to ensure it connects with the rest of the prompt UI.
 };
+
+export const defaultInstructions = [
+	['↑/↓', 'to navigate'],
+	['space', 'select current'],
+	['a', 'select approved'],
+	['A', 'select all'],
+	['x', 'clear selection'],
+	['o', 'open current'],
+	['+', 'approve current'],
+	['^f', 'filter'],
+	['enter', 'merge selected'],
+	['r', 'refresh'],
+	['esc', 'quit'],
+].map(([key, desc]) => `${fmt.white.bgGray(` ${key} `)} ${desc}`);
+
+export const filterModeInstructions = [
+	['↑/↓', 'to navigate'],
+	['space', 'select current'],
+	['A', 'select all'],
+	['X', 'clear selection'],
+	['O', 'open current'],
+	['+', 'approve current'],
+	['^f', 'exit filter'],
+	['enter', 'merge selected'],
+	['esc', 'quit'],
+].map(([key, desc]) => fmt.magenta(`${fmt.inverse(` ${key} `)} ${desc}`));
