@@ -183,7 +183,7 @@ async function loop({ org, githubClient, args, store }) {
 					// Handle user input, supports backspace, alphanumeric characters, spaces, slashes, parentheses, colons, at signs, and hyphens.
 					if (key === '\x7f' || info.name === 'backspace') {
 						filterString = filterString.slice(0, -1);
-					} else if (/^[a-z0-9\/\s():@^-]$/.test(key)) {
+					} else if (/^[a-z0-9\/():@^-]$/.test(key)) {
 						filterString += key;
 					}
 					// Update options to only display PRs matching the current search string.
