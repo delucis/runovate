@@ -1,4 +1,4 @@
-import { getSelfVersion } from './get-self-version.js';
+import { getSelfVersion } from '../../utils/get-self-version.js';
 
 /**
  * @param {string} endpoint

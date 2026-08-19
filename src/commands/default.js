@@ -1,15 +1,15 @@
 import { getColumns } from '@clack/core';
-import { cancel, confirm, isCancel, log, note, progress, spinner, text } from '@clack/prompts';
-import { sliceAnsi } from 'fast-slice-ansi';
-import fastStringWidth from 'fast-string-width';
+import { cancel, confirm, isCancel, log, note, progress, text } from '@clack/prompts';
 import fmt from 'femtocolors';
 import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
-import { error, info, success, warning } from '../utils/colors.js';
-import { authenticateWithGitHub } from '../utils/github-auth.js';
-import { GitHubClient } from '../utils/github.js';
+import { info, success } from '../utils/colors.js';
 import { printHeader } from '../utils/header.js';
 import { strictParse } from '../utils/strict-parse.js';
+import { authenticateWithGitHub } from './default/github-auth.js';
+import { GitHubClient } from './default/github-client.js';
+import { approvePR, getPRs, mergePR, reviewDecision } from './default/github.js';
+import { header, optionRow, row } from './default/ui.js';
 
 /** Parse CLI options for this command. */
 function getArgs() {
@@ -23,44 +23,9 @@ function getArgs() {
 	});
 }
 
-const labels = {
-	reviewDecision: {
-		header: fmt.underline('Reviews'),
-		APPROVED: success('[ ✔ ]') + '  ',
-		CHANGES_REQUESTED: error('[ ✖ ]') + '  ',
-		REVIEW_REQUIRED: fmt.gray('[ - ]') + '  ',
-	},
-	checkState: {
-		header: fmt.underline('Checks'),
-		ERROR: error('[ ✖ ]') + ' ',
-		EXPECTED: warning('[ ◓ ]') + ' ',
-		FAILURE: error('[ ✖ ]') + ' ',
-		PENDING: warning('[ ◓ ]') + ' ',
-		SUCCESS: success('[ ✔ ]') + ' ',
-	},
-	changeDetails: {
-		header: ' ' + fmt.underline('Changes') + '',
-	},
-	files: {
-		header: fmt.underline('Files'),
-	},
-};
-
 /**
- * @param {string[]} strings
- */
-const widestWidth = (strings) => Math.max(...strings.map((label) => fastStringWidth(label)));
-
-const colWidth = {
-	reviewDecision: widestWidth(Object.values(labels.reviewDecision)),
-	checkState: widestWidth(Object.values(labels.checkState)),
-	changeDetails: 8,
-};
-
-/** Formatter for compact representations of quantities, e.g. `2.1M` or `17k`. */
-const shortNum = new Intl.NumberFormat('en', { notation: 'compact' }).format;
-
-/**
+ * Main interaction loop for the PR management UI.
+ *
  * @param {object} context
  * @param {string} context.org
  * @param {ReturnType<typeof GitHubClient>} context.githubClient
@@ -76,146 +41,10 @@ async function loop({ org, githubClient, args, store }) {
 
 	let columns = getColumns(process.stdout);
 
-	/**
-	 * @param {string} status One-character status indicator e.g. `fmt.blue('●')`
-	 * @param {string} title
-	 * @param {string} checkState
-	 * @param {string} reviewDecision
-	 * @param {string | { changedFiles: number; additions: number; deletions: number } | null} pr
-	 * @param {string | string[] | null} files
-	 */
-	const row = (status, title, checkState, reviewDecision, pr, files) => {
-		const screenWidth = columns - 17;
-		const maxWidth = Math.min(screenWidth, 110);
-		const selectUIWidth = 20;
-		const paddingWidth = 4;
-		const padding = ' '.repeat(paddingWidth);
-		const statusIndicator = status || ' ';
-		const availableTitleWidth =
-			maxWidth -
-			selectUIWidth -
-			2 - // status indicator
-			paddingWidth * 3 -
-			colWidth.checkState -
-			colWidth.reviewDecision -
-			colWidth.changeDetails;
-		const minTitleWidth = 36;
-		const titleWidth = Math.max(availableTitleWidth, minTitleWidth);
-		if (fastStringWidth(title) > titleWidth) {
-			title = sliceAnsi(title, 0, titleWidth - 1).trim() + '…';
-		}
-		if (fastStringWidth(title) < titleWidth) {
-			title = title + ' '.repeat(titleWidth - fastStringWidth(title));
-		}
-
-		let line = statusIndicator + ' ' + title;
-
-		if (fastStringWidth(line) + paddingWidth + colWidth.checkState < maxWidth) {
-			line += padding + checkState;
-		} else {
-			return line;
-		}
-
-		if (fastStringWidth(line) + paddingWidth + colWidth.reviewDecision < maxWidth) {
-			line += padding + reviewDecision;
-		} else {
-			return line;
-		}
-
-		if (fastStringWidth(line) + paddingWidth + colWidth.changeDetails < maxWidth) {
-			// +10k-10k
-			//  +1k-1k
-			// +100-100
-			//   +7-18
-			const changeDetails = pr
-				? typeof pr === 'string'
-					? pr
-					: fmt.green(`+${shortNum(pr.additions)}`.padStart(4)) +
-						fmt.red(`-${shortNum(pr.deletions)}`.padEnd(4))
-				: '';
-			line += padding + changeDetails.padEnd(colWidth.changeDetails);
-		} else {
-			return line;
-		}
-
-		if (fastStringWidth(line) + paddingWidth + 5 < screenWidth) {
-			if (typeof files === 'string') {
-				line += padding + files;
-			} else if (pr && typeof pr !== 'string' && files) {
-				const fileCountString = `(${pr.changedFiles}) `;
-				const fileSeparator = ', ';
-				const ellipsis = '...';
-				const availableWidth =
-					screenWidth -
-					fastStringWidth(line) -
-					paddingWidth -
-					fileCountString.length -
-					ellipsis.length;
-				const filesToShow = [];
-				let usedWidth = 0;
-				for (const file of files) {
-					const fileWidth = fastStringWidth(file + fileSeparator);
-					if (usedWidth + fileWidth <= availableWidth) {
-						filesToShow.push(file);
-						usedWidth += fileWidth;
-					} else {
-						break;
-					}
-				}
-				line += padding + fmt.gray(fileCountString);
-				if (filesToShow.length > 0) {
-					line += fmt.gray(filesToShow.join(fileSeparator));
-					if (filesToShow.length < pr.changedFiles) {
-						line += fmt.gray([fileSeparator, ellipsis].join(' '));
-					}
-				} else {
-					line += fmt.gray(ellipsis);
-				}
-			}
-		}
-
-		return line;
-	};
-
-	/** @param {PR} pr */
-	const optionRow = (pr) => {
-		return row(
-			pr.mergeable === 'CONFLICTING' ? error.bold('‼︎') : pr.isReadByViewer ? ' ' : fmt.blue('●'),
-			pr.title,
-			labels.checkState[pr.statusCheckRollup.state],
-			labels.reviewDecision[reviewDecision(pr)],
-			pr,
-			pr.files.nodes.map((file) => file.path),
-		);
-	};
-
-	/**
-	 * @param {number} selectedCount
-	 */
-	const header = (selectedCount) => {
-		return [
-			fmt.inverse(` Found ${PRs.length} Renovate PR${PRs.length === 1 ? '' : 's'} `) +
-				fmt.dim(` Use shortcuts to select, approve, and merge`),
-			'╲' +
-				fmt.gray('╲' + fmt.dim('╲ ')) +
-				row(
-					'',
-					(selectedCount ? success : fmt.dim)(
-						`${String(selectedCount).padStart(Math.floor(Math.log(PRs.length) / Math.LN10) + 1)} selected   `,
-					) +
-						fmt.gray(fmt.dim('╱') + '╱') +
-						`╱`,
-					labels.checkState.header,
-					labels.reviewDecision.header,
-					labels.changeDetails.header,
-					labels.files.header,
-				),
-		].join(`\n${fmt.cyan('│')}  `);
-	};
-
-	let headerString = header(0);
+	let headerString = header(0, PRs.length);
 
 	const selection = await customMultiselect({
+		// Using a getter to let us modify the header on rerenders.
 		get message() {
 			return headerString;
 		},
@@ -223,18 +52,7 @@ async function loop({ org, githubClient, args, store }) {
 		options: PRs.reduce((acc, pr) => {
 			const repo = fmt.bold(pr.repository.name);
 			acc[repo] ??= [];
-			acc[repo].push({
-				value: pr,
-				label: optionRow(pr),
-				// label: [
-				// 	pr.isReadByViewer ? ' ' : fmt.blue('●'),
-				// 	`${pr.statusCheckRollup.state === 'SUCCESS' ? success.bold('✔') : pr.statusCheckRollup.state === 'FAILURE' || pr.statusCheckRollup.state === 'ERROR' ? error.bold('✖') : warning.bold('◓')}`,
-				// 	`${pr.reviewDecision === 'APPROVED' ? success.bold('✔') : pr.reviewDecision === 'CHANGES_REQUESTED' ? error.bold('✖') : warning.bold('◓')}`,
-				// 	pr.mergeable === 'CONFLICTING' ? error('CONFLICTED') : '',
-				// 	`${pr.title}`,
-				// ].join(' '),
-				// hint: `${pr.changedFiles} file${pr.changedFiles > 1 ? 's' : ''} ${fmt.green(`+${pr.additions}`)}${fmt.red(`-${pr.deletions}`)}`,
-			});
+			acc[repo].push({ value: pr, label: optionRow(pr) });
 			return acc;
 		}, /** @type {import('@clack/prompts').GroupMultiSelectOptions<typeof PRs[number]>['options']} */ ({})),
 
@@ -335,7 +153,7 @@ async function loop({ org, githubClient, args, store }) {
 		],
 
 		beforeRender({ prompt }) {
-			headerString = header(prompt.value?.length || 0);
+			headerString = header(prompt.value?.length || 0, PRs.length);
 
 			if (prompt.state === 'submit') {
 				// Update labels and header on submit so the final output is compact and easier to read.
@@ -354,7 +172,7 @@ async function loop({ org, githubClient, args, store }) {
 			const newColumns = getColumns(process.stdout);
 			if (newColumns === columns) return;
 			columns = newColumns;
-			headerString = header(prompt.value?.length || 0);
+			headerString = header(prompt.value?.length || 0, PRs.length);
 			prompt.options.forEach((option) => {
 				if (option.group === true) return;
 				option.label = optionRow(option.value);
@@ -404,6 +222,10 @@ async function loop({ org, githubClient, args, store }) {
 	}
 }
 
+/**
+ * Main entry point for the `runovate` command.
+ * Authenticates with GitHub, then runs the main TUI interaction loop.
+ */
 export default async function main() {
 	await printHeader();
 
@@ -446,137 +268,4 @@ async function getOrg(initialValue) {
 	}
 
 	return org;
-}
-
-/**
- * @typedef {object} PR
- * @property {string} id
- * @property {number} number
- * @property {string} title
- * @property {string} permalink
- * @property {{ state: 'ERROR' | 'EXPECTED' | 'FAILURE' | 'PENDING' | 'SUCCESS' }} statusCheckRollup
- * @property {'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null} reviewDecision
- * @property {{ nodes: { state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' }[] }} latestOpinionatedReviews
- * @property {number} additions
- * @property {number} deletions
- * @property {number} changedFiles
- * @property {{ nodes: { path: string }[] }} files
- * @property {number} totalCommentsCount
- * @property {boolean} isReadByViewer
- * @property {'CONFLICTING' | 'MERGEABLE' | 'UNKNOWN'} mergeable
- * @property {boolean} merged
- * @property {{ name: string; nameWithOwner: `${string}/${string}` }} repository
- */
-
-/**
- * @param {string} org
- * @param {ReturnType<typeof GitHubClient>} githubClient
- * @param {number} max
- * @returns {Promise<Array<PR>>}
- */
-async function getPRs(org, githubClient, max) {
-	const spin = spinner();
-	spin.start(`Fetching open Renovate PRs for ${org}...`);
-
-	const query = `query($max: Int!, $query: String!) {
-    search(first: $max, query: $query, type: ISSUE) {
-      nodes {
-        ...on PullRequest {
-          id,
-          number,
-          title,
-          permalink,
-          statusCheckRollup { state },
-          reviewDecision,
-          latestOpinionatedReviews(first: 10, writersOnly: true) { nodes { state } },
-          additions,
-          deletions,
-          changedFiles,
-          files(first: 5) { nodes { path } },
-          totalCommentsCount,
-          isReadByViewer,
-          mergeable,
-          merged,
-          repository { name, nameWithOwner }
-        }
-      }
-    }
-  }`;
-
-	const variables = {
-		query: `type:pr author:renovate[bot] state:open org:${org}`,
-		max,
-	};
-
-	const result = await githubClient.query(query, variables);
-
-	const PRs = result.data.search.nodes;
-
-	spin.clear();
-
-	return PRs;
-}
-
-/** @param {PR} pr */
-function reviewDecision({ reviewDecision, latestOpinionatedReviews }) {
-	if (reviewDecision) return reviewDecision;
-	/** @type {NonNullable<PR['reviewDecision']>} */
-	let decision = 'REVIEW_REQUIRED';
-	for (const { state } of latestOpinionatedReviews.nodes) {
-		if (state === 'CHANGES_REQUESTED') {
-			decision = 'CHANGES_REQUESTED';
-			break;
-		} else if (state === 'APPROVED') {
-			decision = 'APPROVED';
-		}
-	}
-	return decision;
-}
-
-/**
- * @param {string} prId
- * @param {ReturnType<typeof GitHubClient>} githubClient
- * @returns {Promise<{ pullRequestReview: { id: string; state: string } }>}
- */
-async function approvePR(prId, githubClient) {
-	const query = `mutation($prId: ID!) {
-    addPullRequestReview(input: { pullRequestId: $prId, event: APPROVE }) {
-      pullRequestReview {
-        id
-        state
-      }
-    }
-  }`;
-
-	const variables = {
-		prId,
-	};
-
-	return await githubClient.query(query, variables);
-}
-
-/**
- *
- * @param {string} prId
- * @param {ReturnType<typeof GitHubClient>} githubClient
- * @returns {Promise<{ pullRequest: { id: string; merged: boolean } }>}
- */
-async function mergePR(prId, githubClient) {
-	const query = `mutation($prId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-    mergePullRequest(input: { pullRequestId: $prId, mergeMethod: $mergeMethod }) {
-      pullRequest {
-        id
-        merged
-      }
-    }
-  }`;
-
-	const variables = {
-		prId,
-		mergeMethod: 'SQUASH', // or 'MERGE' or 'REBASE' depending on your preference
-	};
-
-	const result = await githubClient.query(query, variables);
-
-	return result.data.mergePullRequest;
 }

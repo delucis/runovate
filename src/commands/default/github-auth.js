@@ -2,9 +2,9 @@ import { cancel, confirm, isCancel, note, spinner } from '@clack/prompts';
 import fmt from 'femtocolors';
 import open from 'tiny-open';
 import { writeText } from 'tinyclip';
-import { error, info } from './colors.js';
-import { keychain } from './macos-keychain.js';
-import { KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE } from './constants.js';
+import { error, info } from '../../utils/colors.js';
+import { KEYCHAIN_ACCOUNT, KEYCHAIN_SERVICE } from '../../utils/constants.js';
+import { keychain } from '../../utils/macos-keychain.js';
 
 /**
  * Authenticate the user with GitHub using the OAuth device flow.
