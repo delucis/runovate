@@ -116,7 +116,7 @@ export async function approvePR(prId, githubClient) {
  * Merge a PR using the GitHub GraphQL API.
  * @param {string} prId The ID of the PR to merge (from the PR’s `id` field).
  * @param {ReturnType<typeof GitHubClient>} githubClient An authenticated GitHub client.
- * @returns {Promise<{ pullRequest: { id: string; merged: boolean } }>}
+ * @returns {Promise<{ pullRequest: { id: string; merged: boolean } } | "(intermediate value)">}
  */
 export async function mergePR(prId, githubClient) {
 	const query = `mutation($prId: ID!, $mergeMethod: PullRequestMergeMethod!) {
@@ -136,5 +136,6 @@ export async function mergePR(prId, githubClient) {
 
 	const result = await githubClient.query(query, variables);
 
+	// Sometimes instead of an object, this can be the string "(intermediate value)". This is appears to be a bug in the GitHub API.
 	return result.data.mergePullRequest;
 }

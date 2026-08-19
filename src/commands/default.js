@@ -263,10 +263,8 @@ async function loop({ org, githubClient, args, store }) {
 			let index = 1;
 			bar.start(`Merging ${index}/${selection.length} PRs...`);
 			for (const { id } of selection) {
-				const { pullRequest } = await mergePR(id, githubClient);
-				if (pullRequest.merged) {
-					store.mergedPRs.add(id);
-				}
+				await mergePR(id, githubClient);
+				store.mergedPRs.add(id);
 				index++;
 				bar.advance(1, `Merging ${index}/${selection.length} PRs...`);
 			}
