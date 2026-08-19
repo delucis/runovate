@@ -1,6 +1,6 @@
 {
 	"name": "runovate",
-	"version": "0.0.9",
+	"version": "0.0.10",
 	"description": "CLI for managing Renovate update PRs on GitHub",
 	"bin": {
 		"runovate": "./bin/runovate.js"
