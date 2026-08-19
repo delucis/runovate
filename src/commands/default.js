@@ -3,7 +3,7 @@ import fmt from 'femtocolors';
 import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
 import { disableVimKeys, enableVimKeys } from '../utils/clack.js';
-import { info, success } from '../utils/colors.js';
+import { error, info, success } from '../utils/colors.js';
 import { printHeader } from '../utils/header.js';
 import { strictParse } from '../utils/strict-parse.js';
 import { authenticateWithGitHub } from './default/github-auth.js';
@@ -261,14 +261,23 @@ async function loop({ org, githubClient, args, store }) {
 				max: selection.length,
 			});
 			let index = 1;
+			let merged = 0;
 			bar.start(`Merging ${index}/${selection.length} PRs...`);
-			for (const { id } of selection) {
-				await mergePR(id, githubClient);
-				store.mergedPRs.add(id);
+			for (const { id, repository, number } of selection) {
+				const result = await mergePR(id, githubClient);
+				if (result.pullRequest?.merged) {
+					store.mergedPRs.add(id);
+					merged++;
+				} else if (result.errors) {
+					log.error(
+						error(`Failed to merge PR ${fmt.bold(`${repository.nameWithOwner}#${number}`)}\n`) +
+							`${result.errors.map((e) => error(`${e.type}: ${e.message}`)).join('\n')}`,
+					);
+				}
 				index++;
 				bar.advance(1, `Merging ${index}/${selection.length} PRs...`);
 			}
-			bar.stop(`Merged ${selection.length} PR${selection.length === 1 ? '' : 's'}`);
+			bar.stop(`Merged ${merged} PR${merged === 1 ? '' : 's'}`);
 		}
 	}
 }
