@@ -104,6 +104,7 @@ function formatInstructionFooter(instructions, hasGuide, columns) {
  *        prompt: import('@clack/core').GroupMultiSelectPrompt<import('@clack/prompts').Option<T>>;
  *        rerender: () => void;
  *    }) => void;
+ *    instructions?: string[];
  * }} The options for the group multiselect prompt
  * @returns Promise<T[] | symbol>
  */
@@ -308,13 +309,14 @@ export const customMultiselect = (opts) => {
 					const titleLineCount = title.split('\n').length;
 					const footerLines = showInstructions
 						? formatInstructionFooter(
-								[
-									...MULTISELECT_INSTRUCTIONS,
-									...(opts.shortcuts || []).map(({ label, hint }) => /** @type {const} */ [
-										label,
-										hint,
-									]),
-								].map(([key, desc]) => `${fmt.white.bgGray(` ${key} `)} ${desc}`),
+								opts.instructions ||
+									[
+										...MULTISELECT_INSTRUCTIONS,
+										...(opts.shortcuts || []).map(({ label, hint }) => /** @type {const} */ [
+											label,
+											hint,
+										]),
+									].map(([key, desc]) => `${fmt.white.bgGray(` ${key} `)} ${desc}`),
 								hasGuide,
 								columns,
 							)
