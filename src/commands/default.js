@@ -263,21 +263,52 @@ async function loop({ org, githubClient, args, store }) {
 			let index = 1;
 			let merged = 0;
 			bar.start(`Merging ${index}/${selection.length} PRs...`);
-			for (const { id, repository, number } of selection) {
-				const result = await mergePR(id, githubClient);
-				if (result.pullRequest?.merged) {
-					store.mergedPRs.add(id);
-					merged++;
-				} else if (result.errors) {
-					log.error(
-						error(`Failed to merge PR ${fmt.bold(`${repository.nameWithOwner}#${number}`)}\n`) +
-							`${result.errors.map((e) => error(`${e.type}: ${e.message}`)).join('\n')}`,
-					);
+			const errors = [];
+
+			for (const pr of selection) {
+				try {
+					const result = await mergePR(pr.id, githubClient);
+					if (result.pullRequest?.merged) {
+						store.mergedPRs.add(pr.id);
+						merged++;
+					} else if (result.errors) {
+						errors.push({ ...pr, error: result.errors });
+					}
+				} catch (error) {
+					// TODO: Potentially retry some errors? e.g. I got a 502 error on one merge which was likely just flaky. It is GitHub after all.
+					if (!(error instanceof Error)) {
+						throw error;
+					}
+					errors.push({ ...pr, error: [{ type: 'EXCEPTION', message: error.message }] });
 				}
 				index++;
 				bar.advance(1, `Merging ${index}/${selection.length} PRs...`);
 			}
+
 			bar.stop(`Merged ${merged} PR${merged === 1 ? '' : 's'}`);
+
+			if (errors.length > 0) {
+				let errorMessage = `Failed to merge ${errors.length} PR${errors.length === 1 ? '' : 's'}:\n\n`;
+				errorMessage += errors
+					.map(
+						(i) =>
+							`- ${fmt.bold(`${i.repository.nameWithOwner}#${i.number}`)}\n` +
+							`${i.error.map((e) => error(`  ${e.type}: ${e.message}`)).join('\n')}`,
+					)
+					.join('\n\n');
+				log.error(error(errorMessage));
+			}
+
+			if (
+				errors.some(({ error }) =>
+					error.some(({ message }) => message.includes('without `workflow` scope')),
+				)
+			) {
+				note(
+					'Some merges failed because runovate does not have permission to modify workflows.\n\n' +
+						`To change this, run ${info.bold('runovate login')} to log in again and grant access to workflows.`,
+				);
+			}
 		}
 	}
 }
