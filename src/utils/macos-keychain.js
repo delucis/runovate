@@ -116,6 +116,7 @@ class Keychain {
 
 		const security = spawn(this.#executablePath, [
 			'add-' + type + '-password',
+			'-U',
 			'-a',
 			account,
 			'-s',
@@ -127,13 +128,7 @@ class Keychain {
 		security.on('error', reject);
 
 		security.on('close', (code) => {
-			if (code == 45) {
-				// Code 45 indicates that the item already exists in the keychain.
-				// Delete the existing password and try again.
-				this.delete(account, service, type)
-					.then(() => this.set(account, service, password, type).then(resolve).catch(reject))
-					.catch(reject);
-			} else if (code !== 0) {
+			if (code !== 0) {
 				return reject(`Security returned a non-successful error code: ${code}`);
 			} else {
 				resolve();
