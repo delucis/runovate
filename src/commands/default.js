@@ -1,4 +1,14 @@
-import { cancel, confirm, isCancel, log, note, progress, text } from '@clack/prompts';
+import {
+	cancel,
+	confirm,
+	isCancel,
+	log,
+	note,
+	progress,
+	S_BAR,
+	S_ERROR,
+	text
+} from '@clack/prompts';
 import fmt from 'femtocolors';
 import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
@@ -264,7 +274,7 @@ async function loop({ org, githubClient, args, store }) {
 			let index = 1;
 			let merged = 0;
 			bar.start(`Merging ${index}/${selection.length} PRs...`);
-			const errors = [];
+			const erroredPRs = [];
 
 			for (const pr of selection) {
 				try {
@@ -273,14 +283,14 @@ async function loop({ org, githubClient, args, store }) {
 						store.mergedPRs.add(pr.id);
 						merged++;
 					} else if (result.errors) {
-						errors.push({ ...pr, error: result.errors });
+						erroredPRs.push({ ...pr, errors: result.errors });
 					}
 				} catch (error) {
 					// TODO: Potentially retry some errors? e.g. I got a 502 error on one merge which was likely just flaky. It is GitHub after all.
 					if (!(error instanceof Error)) {
 						throw error;
 					}
-					errors.push({ ...pr, error: [{ type: 'EXCEPTION', message: error.message }] });
+					erroredPRs.push({ ...pr, errors: [{ type: 'EXCEPTION', message: error.message }] });
 				}
 				index++;
 				bar.advance(1, `Merging ${index}/${selection.length} PRs...`);
@@ -288,21 +298,24 @@ async function loop({ org, githubClient, args, store }) {
 
 			bar.stop(`Merged ${merged} PR${merged === 1 ? '' : 's'}`);
 
-			if (errors.length > 0) {
-				let errorMessage = `Failed to merge ${errors.length} PR${errors.length === 1 ? '' : 's'}:\n\n`;
-				errorMessage += errors
-					.map(
-						(i) =>
-							`- ${fmt.bold(`${i.repository.nameWithOwner}#${i.number}`)}\n` +
-							`${i.error.map((e) => error(`  ${e.type}: ${e.message}`)).join('\n')}`,
-					)
-					.join('\n\n');
-				log.error(error(errorMessage));
+			if (erroredPRs.length > 0) {
+				const guide = error(S_BAR);
+				let errorMessage = `Failed to merge ${erroredPRs.length} PR${erroredPRs.length === 1 ? '' : 's'}:\n${guide}\n`;
+				errorMessage += erroredPRs
+					.map((erroredPR, index, entries) => {
+						const prefix = index === entries.length - 1 ? ' ' : guide;
+						return (
+							`${error(S_ERROR)} ${fmt.bold(`${erroredPR.repository.nameWithOwner}#${erroredPR.number}`)}\n` +
+							`${erroredPR.errors.map((e) => prefix + error(` ${e.type}: ${e.message}`)).join('\n')}`
+						);
+					})
+					.join(`\n${guide}\n`);
+				log.error(errorMessage);
 			}
 
 			if (
-				errors.some(({ error }) =>
-					error.some(({ message }) => message.includes('without `workflow` scope')),
+				erroredPRs.some(({ errors }) =>
+					errors.some(({ message }) => message.includes('without `workflow` scope')),
 				)
 			) {
 				note(
