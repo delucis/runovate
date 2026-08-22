@@ -4,6 +4,7 @@ import open from 'tiny-open';
 import { customMultiselect } from '../prompts/custom-multiselect.js';
 import { disableVimKeys, enableVimKeys } from '../utils/clack.js';
 import { error, info, success } from '../utils/colors.js';
+import { GITHUB_CLIENT_ID } from '../utils/constants.js';
 import { printHeader } from '../utils/header.js';
 import { strictParse } from '../utils/strict-parse.js';
 import { authenticateWithGitHub } from './default/github-auth.js';
@@ -21,8 +22,8 @@ import {
 function getArgs() {
 	return strictParse(process.argv, {
 		default: {
-			client_id: 'Ov23lit7H6Mnl5CN9B5N',
 			include_private: false,
+			client_id: GITHUB_CLIENT_ID,
 		},
 		string: ['org', 'client_id', 'max_prs'],
 		boolean: ['include_private'],
